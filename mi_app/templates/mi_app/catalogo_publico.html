@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo Público - Fantasá Intima</title>
+    <!-- Incluye Tailwind CSS desde CDN para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Incluye Font Awesome para iconos -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        .product-card {
+            transition: transform 0.3s ease-in-out;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Encabezado y barra de navegación -->
+    <header class="bg-pink-600 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center flex-wrap">
+            <div class="flex items-center space-x-4">
+                <!-- Botón de menú para móviles -->
+                <div class="md:hidden">
+                    <button id="menu-toggle" class="text-white text-2xl">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+                <a href="{% url 'catalogo_publico' %}" class="text-2xl font-bold">Fantasía Intima</a>
+            </div>
+            
+            <!-- Barra de navegación principal para escritorio -->
+            <nav id="category-nav" class="hidden md:flex space-x-4 flex-grow justify-end items-center">
+                <button onclick="filterProducts('all')" class="bg-pink-700 hover:bg-pink-800 text-white font-bold py-2 px-4 rounded-lg transition-colors">Todos</button>
+                <button onclick="filterProducts('mallas_enterizas')" class="bg-pink-700 hover:bg-pink-800 text-white font-bold py-2 px-4 rounded-lg transition-colors">Mallas enterizas</button>
+                <button onclick="filterProducts('lenceria')" class="bg-pink-700 hover:bg-pink-800 text-white font-bold py-2 px-4 rounded-lg transition-colors">Lencería</button>
+                <button onclick="filterProducts('disfraz_sexi')" class="bg-pink-700 hover:bg-pink-800 text-white font-bold py-2 px-4 rounded-lg transition-colors">Disfraz sexi</button>
+                <a href="{% url 'login' %}" class="bg-pink-700 hover:bg-pink-800 text-white font-bold py-2 px-4 rounded-lg transition-colors">Iniciar Sesión</a>
+                <a href="{% url 'ver_carrito' %}" class="relative bg-pink-700 hover:bg-pink-800 text-white font-bold py-2 px-3 rounded-full transition-colors flex items-center shadow-md">
+                    <i class="fas fa-shopping-cart text-xl"></i>
+                    <span id="cart-counter" class="absolute -top-1 -right-1 bg-rose-500 text-xs font-semibold px-2 py-1 rounded-full border-2 border-pink-600">
+                        0
+                    </span>
+                </a>
+            </nav>
+            
+            <!-- Barra de búsqueda para escritorio -->
+            <div class="relative w-full max-w-xs hidden md:block ml-4">
+                <input type="text" id="search-bar" placeholder="Buscar productos..." onkeyup="searchProducts(this.value)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-800">
+                <i class="fas fa-search absolute right-3 top-3 text-gray-400"></i>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Menú lateral para móviles -->
+    <div id="mobile-menu" class="fixed top-0 left-0 w-64 h-full bg-pink-700 text-white shadow-lg transform -translate-x-full transition-transform duration-300 z-40">
+        <div class="p-4 flex justify-between items-center">
+            <h3 class="text-xl font-bold">Menú</h3>
+            <button id="close-menu-toggle" class="text-white text-2xl">&times;</button>
+        </div>
+        <div class="p-4">
+            <input type="text" id="mobile-search-bar" placeholder="Buscar..." onkeyup="searchProducts(this.value)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-800 mb-4">
+        </div>
+        <nav class="flex flex-col p-4 space-y-2">
+            <button onclick="filterProducts('all')" class="hover:bg-pink-600 px-4 py-2 rounded-lg text-left">Mostrar Todos</button>
+            <button onclick="filterProducts('mallas_enterizas')" class="hover:bg-pink-600 px-4 py-2 rounded-lg text-left">Mallas enterizas</button>
+            <button onclick="filterProducts('lenceria')" class="hover:bg-pink-600 px-4 py-2 rounded-lg text-left">Lencería</button>
+            <button onclick="filterProducts('disfraz_sexi')" class="hover:bg-pink-600 px-4 py-2 rounded-lg text-left">Disfraz sexi</button>
+            <a href="{% url 'login' %}" class="hover:bg-pink-600 px-4 py-2 rounded-lg text-left">Iniciar Sesión</a>
+            <a href="{% url 'ver_carrito' %}" class="relative hover:bg-pink-600 px-4 py-2 rounded-lg text-left">
+                Carrito
+                <span id="mobile-cart-counter" class="absolute top-1 right-2 bg-rose-500 text-xs font-semibold px-2 py-1 rounded-full border-2 border-pink-600">0</span>
+            </a>
+        </nav>
+    </div>
+    
+    <!-- Contenido principal del catálogo -->
+    <main class="container mx-auto p-8">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Nuestros Productos</h2>
+        <div id="product-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {% for producto in productos %}
+            <a href="{% url 'producto_detalle' producto.pk %}" class="product-card bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 border-t-4 border-pink-500 block" data-product-id="{{ producto.id }}" data-category="{{ producto.categoria }}">
+                <h3 class="product-name text-2xl font-bold text-gray-900 mb-2">{{ producto.nombre }}</h3>
+                {% if producto.imagen_principal %}
+                    <div class="relative w-full h-48 mb-4">
+                        <img src="{{ producto.imagen_principal.url }}" alt="Imagen de {{ producto.nombre }}" class="w-full h-full object-contain rounded-md">
+                    </div>
+                {% endif %}
+                <p class="product-description text-gray-600 mb-4 mt-4 break-words">{{ producto.descripcion }}</p>
+                <div class="flex justify-between items-center">
+                    <p class="text-2xl font-extrabold text-pink-600">S/<span class="product-price">{{ producto.precio }}</span></p>
+                    <button type="button" class="bg-rose-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-rose-600 transition-colors">Ver Detalles</button>
+                </div>
+                <p class="text-sm text-gray-400 mt-2">
+                    Stock: <span id="stock-{{ producto.id }}" class="product-stock">
+                        {{ producto.total_stock }}
+                    </span> unidades
+                </p>
+            </a>
+            {% empty %}
+            <div class="col-span-full text-center py-16">
+                <p class="text-lg text-gray-500">Lo sentimos, aún no hay productos disponibles.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <!-- Modal para ver imágenes en grande -->
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 hidden">
+        <div class="relative max-w-full max-h-full">
+            <button onclick="hideModal()" class="absolute top-4 right-4 text-white text-3xl font-bold">&times;</button>
+            <img id="modalImage" src="" alt="Imagen en zoom" class="max-w-full max-h-screen">
+        </div>
+    </div>
+
+    <!-- Botones de redes sociales flotantes -->
+    <div class="fixed bottom-6 left-6 flex flex-col space-y-2 z-50">
+        <a href="https://wa.me/51932187068" class="bg-green-500 text-white p-4 rounded-full shadow-lg hover:bg-green-600 transition-colors" target="_blank">
+            <i class="fab fa-whatsapp text-2xl"></i>
+        </a>
+        <a href="https://web.facebook.com/fantasiaintimaa/" class="bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-colors" target="_blank">
+            <i class="fab fa-facebook-f text-2xl"></i>
+        </a>
+        <a href="https://www.instagram.com/fantasia_intima_lenceria" class="bg-pink-600 text-white p-4 rounded-full shadow-lg hover:bg-pink-700 transition-colors" target="_blank">
+            <i class="fab fa-instagram text-2xl"></i>
+        </a>
+        <a href="https://www.tiktok.com/@fantasa.ntima" class="bg-black text-white p-4 rounded-full shadow-lg hover:bg-gray-800 transition-colors" target="_blank">
+            <i class="fab fa-tiktok text-2xl"></i>
+        </a>
+    </div>
+
+    <!-- Botón flotante para el asistente virtual -->
+    <div class="fixed bottom-6 right-6 z-50">
+        <button id="chat-button" class="bg-blue-500 text-white p-4 rounded-full shadow-lg hover:bg-blue-600 transition-colors">
+            <i class="fas fa-comment-dots text-2xl"></i>
+        </button>
+    </div>
+
+    <!-- Contenedor del asistente virtual (chat) -->
+    <div id="chat-container" class="fixed bottom-24 right-6 w-80 h-96 bg-white rounded-lg shadow-xl flex flex-col hidden z-50">
+        <div class="bg-pink-600 text-white p-4 rounded-t-lg flex justify-between items-center">
+            <h3 class="font-bold">Asistente Virtual con IA</h3>
+            <button id="close-chat-button" class="text-white text-xl">&times;</button>
+        </div>
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- Mensaje de bienvenida del bot -->
+            <div class="flex justify-start">
+                <div class="bg-gray-200 text-gray-800 p-3 rounded-lg max-w-[80%]">
+                    Hola, soy tu asistente virtual con IA. ¿En qué puedo ayudarte hoy?
+                </div>
+            </div>
+        </div>
+        <div class="p-4 border-t flex space-x-2">
+            <input type="text" id="chat-input" placeholder="Escribe tu mensaje..." class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500">
+            <button id="chat-send-button" class="bg-pink-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-pink-600">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Pie de página -->
+    <footer class="bg-pink-900 text-pink-100 py-10 mt-16">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Fantasía Intima. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+
+    <script>
+        // Función para mostrar el modal de imagen
+        function showModal(imageUrl) {
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = imageUrl;
+            modal.classList.remove('hidden');
+        }
+
+        // Función para ocultar el modal de imagen
+        function hideModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.add('hidden');
+        }
+
+        // Ocultar modal al hacer clic fuera de la imagen
+        document.getElementById('imageModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                hideModal();
+            }
+        });
+
+        // Funciones para filtrar, buscar y cambiar la imagen/stock de productos
+        function changeProductImageAndStock(productId, imageUrl, stock, variantId) {
+            const mainImage = document.getElementById('main-image-' + productId);
+            const stockElement = document.getElementById('stock-' + productId);
+            const variantInput = document.getElementById('color_variante-' + productId);
+
+            mainImage.src = imageUrl;
+            stockElement.textContent = stock;
+            variantInput.value = variantId;
+        }
+        
+        function filterProducts(category) {
+            const productList = document.getElementById('product-list');
+            const productCards = productList.querySelectorAll('.product-card');
+
+            productCards.forEach(card => {
+                if (category === 'all' || card.getAttribute('data-category') === category) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenu.classList.add('-translate-x-full');
+        }
+
+        function searchProducts(query) {
+            const productList = document.getElementById('product-list');
+            const productCards = productList.querySelectorAll('.product-card');
+            const lowerCaseQuery = query.toLowerCase();
+
+            productCards.forEach(card => {
+                const productName = card.querySelector('.product-name').textContent.toLowerCase();
+                const productDescription = card.querySelector('.product-description').textContent.toLowerCase();
+                if (productName.includes(lowerCaseQuery) || productDescription.includes(lowerCaseQuery)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        // Lógica del chat con asistente virtual
+        const chatButton = document.getElementById('chat-button');
+        const chatContainer = document.getElementById('chat-container');
+        const closeChatButton = document.getElementById('close-chat-button');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendButton = document.getElementById('chat-send-button');
+
+        chatButton.addEventListener('click', () => {
+            chatContainer.classList.toggle('hidden');
+        });
+
+        closeChatButton.addEventListener('click', () => {
+            chatContainer.classList.add('hidden');
+        });
+
+        chatSendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Función para obtener el contexto de la página para el asistente virtual
+        function getPageContext() {
+            const products = [];
+            const productCards = document.querySelectorAll('.product-card');
+            productCards.forEach(card => {
+                const productName = card.querySelector('.product-name').textContent;
+                const productDescription = card.querySelector('.product-description').textContent;
+                const productPrice = card.querySelector('.product-price').textContent;
+                const variants = [];
+                // La plantilla actual no tiene los datos de las variantes, por lo que no se pueden obtener aquí.
+                // Se debe considerar actualizar la plantilla del catálogo para incluir esta información.
+                products.push({
+                    name: productName,
+                    description: productDescription,
+                    price: productPrice,
+                    variants: variants
+                });
+            });
+
+            const contactInfo = {
+                whatsapp: "51999999999",
+                facebook: "https://www.facebook.com/tumarca",
+                instagram: "https://www.instagram.com/tumarca",
+                tiktok: "https://www.tiktok.com/@tumarca"
+            };
+
+            const paymentMethods = ["Yape", "Plin", "Tarjeta de Crédito"];
+            const deliveryInfo = {
+                lima: "1 día hábil",
+                provincia: "3-5 días hábiles"
+            };
+
+            return { products, contactInfo, paymentMethods, deliveryInfo };
+        }
+        
+        // Función para enviar mensaje al asistente virtual
+        async function getAiResponse(userMessage) {
+            const botLoadingElement = document.getElementById('bot-loading');
+            
+            const pageContext = getPageContext();
+            
+            // Llama a la API de Django para obtener la respuesta del asistente virtual
+            const response = await fetch('/get-ai-response/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMessage, context: pageContext })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const aiText = result.response;
+                botLoadingElement.innerHTML = `<div class="bg-gray-200 text-gray-800 p-3 rounded-lg max-w-[80%]">${aiText}</div>`;
+            } else {
+                botLoadingElement.innerHTML = `<div class="bg-red-200 text-red-800 p-3 rounded-lg max-w-[80%]">Lo siento, hubo un problema al obtener la respuesta.</div>`;
+            }
+        }
+
+        // Función para manejar el envío de mensajes
+        async function sendMessage() {
+            const userMessage = chatInput.value.trim();
+            if (userMessage === '') return;
+
+            const userMessageElement = document.createElement('div');
+            userMessageElement.classList.add('flex', 'justify-end');
+            userMessageElement.innerHTML = `
+                <div class="bg-pink-500 text-white p-3 rounded-lg max-w-[80%]">
+                    ${userMessage}
+                </div>
+            `;
+            chatMessages.appendChild(userMessageElement);
+
+            const botLoadingElement = document.createElement('div');
+            botLoadingElement.classList.add('flex', 'justify-start');
+            botLoadingElement.id = 'bot-loading';
+            botLoadingElement.innerHTML = `
+                <div class="bg-gray-200 text-gray-800 p-3 rounded-lg max-w-[80%]">
+                    ...
+                </div>
+            `;
+            chatMessages.appendChild(botLoadingElement);
+            chatInput.value = '';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            await getAiResponse(userMessage);
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Lógica del menú móvil
+        const menuToggle = document.getElementById('menu-toggle');
+        const closeMenuToggle = document.getElementById('close-menu-toggle');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        menuToggle.addEventListener('click', () => {
+            mobileMenu.classList.remove('-translate-x-full');
+        });
+
+        closeMenuToggle.addEventListener('click', () => {
+            mobileMenu.classList.add('-translate-x-full');
+        });
+
+        // Lógica para el contador del carrito
+        document.addEventListener('DOMContentLoaded', function() {
+            async function getCartCount() {
+                try {
+                    // Esta URL debe existir en tu backend y retornar la cantidad de productos en el carrito.
+                    // Por ejemplo, un JSON como: { "cart_count": 5 }
+                    const response = await fetch('{% url "cart_count" %}'); 
+                    const data = await response.json();
+                    
+                    const cartCounter = document.getElementById('cart-counter');
+                    const mobileCartCounter = document.getElementById('mobile-cart-counter');
+                    
+                    if (cartCounter) {
+                        cartCounter.textContent = data.cart_count;
+                    }
+                    if (mobileCartCounter) {
+                        mobileCartCounter.textContent = data.cart_count;
+                    }
+
+                } catch (error) {
+                    console.error('Error al obtener el conteo del carrito:', error);
+                    const cartCounter = document.getElementById('cart-counter');
+                    const mobileCartCounter = document.getElementById('mobile-cart-counter');
+                    if (cartCounter) {
+                        cartCounter.textContent = '0';
+                    }
+                    if (mobileCartCounter) {
+                        mobileCartCounter.textContent = '0';
+                    }
+                }
+            }
+
+            getCartCount();
+        });
+    </script>
+</body>
+</html>

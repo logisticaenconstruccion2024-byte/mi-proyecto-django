@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Usuario</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Estilos personalizados para el modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 400px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .modal-show {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-r from-blue-500 to-teal-500 flex items-center justify-center min-h-screen p-4 sm:p-6">
+    <!-- Contenedor principal para la aplicación -->
+    <div id="app-container" class="max-w-md w-full"></div>
+
+    <!-- Modal para mostrar mensajes -->
+    <div id="message-modal" class="modal">
+        <div class="modal-content p-6 shadow-2xl space-y-4 rounded-lg">
+            <p id="modal-message-text" class="text-lg font-semibold"></p>
+            <button id="modal-close-button" class="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition duration-150">
+                Aceptar
+            </button>
+        </div>
+    </div>
+    
+    <!-- Scripts de Firebase -->
+    <script type="module">
+        // Importar los módulos de Firebase necesarios
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged, 
+            signInWithCustomToken, 
+            signInAnonymously 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            getDoc 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variables globales proporcionadas por el entorno de Canvas
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db;
+        let auth;
+        let currentUser = null;
+        let userData = null;
+
+        // Referencias a elementos del DOM
+        const appContainer = document.getElementById('app-container');
+        const messageModal = document.getElementById('message-modal');
+        const modalMessageText = document.getElementById('modal-message-text');
+        const modalCloseButton = document.getElementById('modal-close-button');
+
+        // Función para mostrar el modal de mensajes
+        const showMessageModal = (message) => {
+            modalMessageText.textContent = message;
+            messageModal.classList.add('modal-show');
+        };
+
+        // Función para ocultar el modal de mensajes
+        const hideMessageModal = () => {
+            messageModal.classList.remove('modal-show');
+        };
+
+        // Escuchador de eventos para el botón de cerrar del modal
+        modalCloseButton.addEventListener('click', hideMessageModal);
+
+        // Renderiza el formulario de registro en el contenedor de la app
+        const renderRegistrationForm = () => {
+            appContainer.innerHTML = `
+                <div class="bg-white p-8 rounded-xl shadow-2xl space-y-6">
+                    <h1 class="text-3xl font-extrabold text-center text-gray-900">Crear Cuenta</h1>
+                    <form id="registration-form" class="space-y-4">
+                        <div>
+                            <label for="first-name" class="block text-sm font-semibold text-gray-700 mb-1">Nombre</label>
+                            <input id="first-name" name="first-name" type="text" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Ingresa tu nombre"/>
+                        </div>
+                        <div>
+                            <label for="last-name" class="block text-sm font-semibold text-gray-700 mb-1">Apellido</label>
+                            <input id="last-name" name="last-name" type="text" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Ingresa tu apellido"/>
+                        </div>
+                        <div>
+                            <label for="department" class="block text-sm font-semibold text-gray-700 mb-1">Departamento</label>
+                            <input id="department" name="department" type="text" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Ingresa tu departamento"/>
+                        </div>
+                        <div>
+                            <label for="province" class="block text-sm font-semibold text-gray-700 mb-1">Provincia</label>
+                            <input id="province" name="province" type="text" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Ingresa tu provincia"/>
+                        </div>
+                        <div>
+                            <label for="district" class="block text-sm font-semibold text-gray-700 mb-1">Distrito</label>
+                            <input id="district" name="district" type="text" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Ingresa tu distrito"/>
+                        </div>
+                        <div>
+                            <label for="email-address" class="block text-sm font-semibold text-gray-700 mb-1">Correo Electrónico</label>
+                            <input id="email-address" name="email" type="email" autocomplete="email" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="nombre@ejemplo.com"/>
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-semibold text-gray-700 mb-1">Contraseña</label>
+                            <input id="password" name="password" type="password" autocomplete="new-password" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Ingresa tu contraseña"/>
+                        </div>
+                        <div>
+                            <label for="confirm-password" class="block text-sm font-semibold text-gray-700 mb-1">Confirmar Contraseña</label>
+                            <input id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Confirma tu contraseña"/>
+                        </div>
+                        <div>
+                            <button type="submit" id="register-button" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
+                                Registrarse
+                            </button>
+                        </div>
+                    </form>
+                    <div class="text-center text-sm font-medium">
+                        ¿Ya tienes una cuenta? <button id="to-login-btn" class="text-blue-600 hover:text-blue-500 focus:outline-none">Iniciar Sesión</button>
+                    </div>
+                </div>
+            `;
+            // Añadir los event listeners para el formulario de registro y el botón de cambio de vista
+            document.getElementById('registration-form').addEventListener('submit', handleRegister);
+            document.getElementById('to-login-btn').addEventListener('click', renderLoginForm);
+        };
+
+        // Renderiza el formulario de inicio de sesión en el contenedor de la app
+        const renderLoginForm = () => {
+            appContainer.innerHTML = `
+                <div class="bg-white p-8 rounded-xl shadow-2xl space-y-6">
+                    <h1 class="text-3xl font-extrabold text-center text-gray-900">Iniciar Sesión</h1>
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label for="email-address-login" class="block text-sm font-semibold text-gray-700 mb-1">Correo Electrónico</label>
+                            <input id="email-address-login" name="email" type="email" autocomplete="email" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="nombre@ejemplo.com"/>
+                        </div>
+                        <div>
+                            <label for="password-login" class="block text-sm font-semibold text-gray-700 mb-1">Contraseña</label>
+                            <input id="password-login" name="password" type="password" autocomplete="current-password" required class="appearance-none relative block w-full px-4 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Ingresa tu contraseña"/>
+                        </div>
+                        <div>
+                            <button type="submit" id="login-button" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
+                                Iniciar Sesión
+                            </button>
+                        </div>
+                    </form>
+                    <div class="text-center text-sm font-medium">
+                        ¿No tienes una cuenta? <button id="to-register-btn" class="text-blue-600 hover:text-blue-500 focus:outline-none">Regístrate</button>
+                    </div>
+                </div>
+            `;
+            // Añadir los event listeners para el formulario de inicio de sesión y el botón de cambio de vista
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('to-register-btn').addEventListener('click', renderRegistrationForm);
+        };
+
+        // Renderiza el dashboard del usuario en el contenedor de la app
+        const renderDashboard = () => {
+            if (!userData) {
+                appContainer.innerHTML = `
+                    <div class="text-center p-8 bg-white rounded-xl shadow-2xl">
+                        <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-xl font-bold text-gray-800 mt-4">Cargando perfil...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            appContainer.innerHTML = `
+                <div class="bg-white p-8 rounded-xl shadow-2xl text-center space-y-6">
+                    <h1 class="text-3xl font-extrabold text-gray-900">¡Bienvenido, ${userData.firstName}!</h1>
+                    <p class="text-lg text-gray-700">Has iniciado sesión correctamente. 🎉</p>
+                    <div class="text-left bg-gray-100 p-4 rounded-lg border border-gray-200">
+                        <p><strong>ID de usuario:</strong> ${currentUser.uid}</p>
+                        <p><strong>Nombre Completo:</strong> ${userData.firstName} ${userData.lastName}</p>
+                        <p><strong>Correo:</strong> ${userData.email}</p>
+                        <p><strong>Ubicación:</strong> ${userData.district}, ${userData.province}, ${userData.department}</p>
+                    </div>
+                    <button id="logout-button" class="w-full py-2 px-4 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150 ease-in-out">
+                        Cerrar Sesión
+                    </button>
+                </div>
+            `;
+            // Añadir el event listener para el botón de cerrar sesión
+            document.getElementById('logout-button').addEventListener('click', handleLogout);
+        };
+        
+        // Manejador del formulario de registro
+        const handleRegister = async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const firstName = form.elements['first-name'].value;
+            const lastName = form.elements['last-name'].value;
+            const email = form.elements['email-address'].value;
+            const password = form.elements['password'].value;
+            const confirmPassword = form.elements['confirm-password'].value;
+            const department = form.elements['department'].value;
+            const province = form.elements['province'].value;
+            const district = form.elements['district'].value;
+            
+            const registerButton = document.getElementById('register-button');
+            registerButton.disabled = true;
+
+            if (password !== confirmPassword) {
+                showMessageModal('Las contraseñas no coinciden.');
+                registerButton.disabled = false;
+                return;
+            }
+            if (password.length < 6) {
+                showMessageModal('La contraseña debe tener al menos 6 caracteres.');
+                registerButton.disabled = false;
+                return;
+            }
+            
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                // Guardar datos adicionales del usuario en Firestore
+                const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'userData', 'profile');
+                await setDoc(userDocRef, {
+                    firstName,
+                    lastName,
+                    email,
+                    department,
+                    province,
+                    district,
+                    createdAt: new Date()
+                });
+                
+                showMessageModal('¡Registro exitoso! Ahora puedes iniciar sesión.');
+                renderLoginForm();
+
+            } catch (error) {
+                let errorMessage = 'Hubo un error al crear la cuenta. Por favor, inténtalo de nuevo.';
+                if (error.code === 'auth/email-already-in-use') {
+                    errorMessage = 'Ese correo electrónico ya está en uso. Por favor, inicia sesión o usa otro.';
+                } else if (error.code === 'auth/weak-password') {
+                    errorMessage = 'La contraseña es demasiado débil. Debe tener al menos 6 caracteres.';
+                } else {
+                    console.error("Error durante el registro:", error);
+                }
+                showMessageModal(errorMessage);
+            } finally {
+                registerButton.disabled = false;
+            }
+        };
+
+        // Manejador del formulario de inicio de sesión
+        const handleLogin = async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const email = form.elements['email-address-login'].value;
+            const password = form.elements['password-login'].value;
+            
+            const loginButton = document.getElementById('login-button');
+            loginButton.disabled = true;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // El listener onAuthStateChanged se encargará de actualizar la vista
+            } catch (error) {
+                let errorMessage = 'Error al iniciar sesión. Verifica tu correo y contraseña.';
+                if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                    errorMessage = 'Credenciales inválidas. Por favor, inténtalo de nuevo.';
+                } else {
+                    console.error("Error durante el inicio de sesión:", error);
+                }
+                showMessageModal(errorMessage);
+            } finally {
+                loginButton.disabled = false;
+            }
+        };
+
+        // Manejador del botón de cerrar sesión
+        const handleLogout = async () => {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Error al cerrar sesión:", error);
+                showMessageModal('Error al cerrar sesión. Por favor, inténtalo de nuevo.');
+            }
+        };
+
+        // Función para obtener los datos del usuario desde Firestore
+        const fetchUserData = async (userId) => {
+            if (!db) return;
+            try {
+                const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'userData', 'profile');
+                const docSnap = await getDoc(userDocRef);
+                if (docSnap.exists()) {
+                    userData = docSnap.data();
+                } else {
+                    userData = null;
+                }
+            } catch (error) {
+                console.error("Error fetching user data:", error);
+                showMessageModal('Error al obtener los datos del usuario.');
+            }
+        };
+
+        // Función principal de inicialización
+        const initApp = async () => {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    showMessageModal('No se encontró la configuración de Firebase. La app no funcionará.');
+                    return;
+                }
+                
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Autenticación inicial
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken).catch(e => {
+                        console.error("Error with custom token, signing in anonymously:", e);
+                        signInAnonymously(auth);
+                    });
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                // Listener de cambios en el estado de autenticación
+                onAuthStateChanged(auth, async (user) => {
+                    currentUser = user;
+                    if (user) {
+                        // Usuario logueado, cargar datos y mostrar dashboard
+                        renderDashboard(); // Mostrar spinner
+                        await fetchUserData(user.uid);
+                        renderDashboard(); // Mostrar datos del usuario
+                    } else {
+                        // Usuario no logueado, mostrar el formulario de login
+                        currentUser = null;
+                        userData = null;
+                        renderLoginForm();
+                    }
+                });
+            } catch (e) {
+                console.error("Error initializing Firebase:", e);
+                showMessageModal('Error al inicializar la aplicación. Inténtalo de nuevo.');
+            }
+        };
+
+        // Iniciar la aplicación cuando la ventana esté cargada
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
